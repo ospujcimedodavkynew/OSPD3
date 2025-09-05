@@ -1,58 +1,77 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useData } from '../context/DataContext';
 import { Card } from './ui';
 
-const CalendarView = () => {
-    const { vehicles, rentals } = useData();
-    const [currentDate, setCurrentDate] = useState(new Date());
+const CalendarView: React.FC = () => {
+    const { rentals, vehicles, customers } = useData();
 
-    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-    const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-
-    const isRented = (vehicleId: string, day: number) => {
-        const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-        return rentals.some(rental => {
-            const startDate = new Date(rental.startDate);
-            const endDate = new Date(rental.endDate);
-            return rental.vehicleId === vehicleId && checkDate >= startDate && checkDate <= endDate;
+    // This is a simplified calendar view. A real app would use a library like FullCalendar.
+    // We will group rentals by date.
+    const eventsByDate: { [key: string]: any[] } = {};
+    rentals.forEach(rental => {
+        const startDate = new Date(rental.startDate);
+        const dateKey = startDate.toISOString().split('T')[0];
+        if (!eventsByDate[dateKey]) {
+            eventsByDate[dateKey] = [];
+        }
+        eventsByDate[dateKey].push({
+            type: 'start',
+            ...rental
         });
-    };
 
+        const endDate = new Date(rental.endDate);
+        const endDateKey = endDate.toISOString().split('T')[0];
+        if (!eventsByDate[endDateKey]) {
+            eventsByDate[endDateKey] = [];
+        }
+        eventsByDate[endDateKey].push({
+            type: 'end',
+            ...rental
+        });
+    });
+
+    const sortedDates = Object.keys(eventsByDate).sort();
+
+    const getVehicleBrand = (id: string) => vehicles.find(v => v.id === id)?.brand || 'Neznámé';
+    const getCustomerName = (id:string) => {
+        const c = customers.find(cust => cust.id === id);
+        return c ? `${c.first_name} ${c.last_name}` : 'Neznámý';
+    };
+    
     return (
-        <Card>
-            <div className="flex justify-between items-center mb-6">
-                <button onClick={prevMonth} className="px-4 py-2 bg-primary rounded-lg">&lt;</button>
-                <h2 className="text-2xl font-bold">
-                    {currentDate.toLocaleString('cs-CZ', { month: 'long', year: 'numeric' })}
-                </h2>
-                <button onClick={nextMonth} className="px-4 py-2 bg-primary rounded-lg">&gt;</button>
-            </div>
-            <div className="overflow-x-auto">
-                <div className="grid gap-px bg-gray-700" style={{ gridTemplateColumns: `150px repeat(${daysInMonth}, minmax(40px, 1fr))` }}>
-                    <div className="p-2 font-semibold bg-surface sticky left-0 z-10">Vozidlo</div>
-                    {days.map(day => (
-                        <div key={day} className="p-2 text-center font-semibold bg-surface">
-                            {day}
-                        </div>
-                    ))}
-                    
-                    {vehicles.map(vehicle => (
-                        <React.Fragment key={vehicle.id}>
-                            <div className="p-2 text-sm font-semibold bg-surface sticky left-0 z-10 border-t border-gray-700">{vehicle.brand}</div>
-                            {days.map(day => (
-                                <div key={day} className={`p-2 border-t border-gray-700 ${isRented(vehicle.id, day) ? 'bg-red-500/50' : 'bg-surface'}`}>
-                                    &nbsp;
-                                </div>
-                            ))}
-                        </React.Fragment>
-                    ))}
-                </div>
-            </div>
-        </Card>
+        <div className="space-y-8">
+            <h1 className="text-3xl font-bold">Kalendář</h1>
+            <Card>
+                {sortedDates.length > 0 ? (
+                    <div className="space-y-6">
+                        {sortedDates.map(date => (
+                            <div key={date}>
+                                <h2 className="font-bold text-lg mb-2 border-b border-gray-700 pb-1">
+                                    {new Date(date).toLocaleDateString('cs-CZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                </h2>
+                                <ul className="space-y-2">
+                                    {eventsByDate[date].map(event => (
+                                        <li key={`${event.id}-${event.type}`} className={`p-3 rounded-lg flex items-center ${
+                                            event.type === 'start' ? 'bg-blue-500/20' : 'bg-red-500/20'
+                                        }`}>
+                                            <span className={`w-3 h-3 rounded-full mr-3 ${event.type === 'start' ? 'bg-blue-400' : 'bg-red-400'}`}></span>
+                                            <div>
+                                                <span className="font-semibold">{getVehicleBrand(event.vehicleId)}</span> - {getCustomerName(event.customerId)}
+                                                <span className="text-sm text-text-secondary ml-2">
+                                                    ({event.type === 'start' ? 'Začátek' : 'Konec'} v {new Date(event.type === 'start' ? event.startDate : event.endDate).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })})
+                                                </span>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-text-secondary">V kalendáři nejsou žádné události.</p>
+                )}
+            </Card>
+        </div>
     );
 };
 
