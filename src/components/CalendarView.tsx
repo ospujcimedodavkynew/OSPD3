@@ -5,71 +5,42 @@ import { Card } from './ui';
 const CalendarView: React.FC = () => {
     const { rentals, vehicles, customers } = useData();
 
-    // This is a simplified calendar view. A real app would use a library like FullCalendar.
-    // We will group rentals by date.
-    const eventsByDate: { [key: string]: any[] } = {};
-    rentals.forEach(rental => {
-        const startDate = new Date(rental.startDate);
-        const dateKey = startDate.toISOString().split('T')[0];
-        if (!eventsByDate[dateKey]) {
-            eventsByDate[dateKey] = [];
-        }
-        eventsByDate[dateKey].push({
-            type: 'start',
-            ...rental
-        });
+    // Sort rentals by start date for timeline view
+    const sortedRentals = [...rentals].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-        const endDate = new Date(rental.endDate);
-        const endDateKey = endDate.toISOString().split('T')[0];
-        if (!eventsByDate[endDateKey]) {
-            eventsByDate[endDateKey] = [];
-        }
-        eventsByDate[endDateKey].push({
-            type: 'end',
-            ...rental
-        });
-    });
-
-    const sortedDates = Object.keys(eventsByDate).sort();
-
-    const getVehicleBrand = (id: string) => vehicles.find(v => v.id === id)?.brand || 'Neznámé';
-    const getCustomerName = (id:string) => {
-        const c = customers.find(cust => cust.id === id);
-        return c ? `${c.first_name} ${c.last_name}` : 'Neznámý';
-    };
-    
     return (
-        <div className="space-y-8">
-            <h1 className="text-3xl font-bold">Kalendář</h1>
+        <div className="space-y-6">
+            <h1 className="text-3xl font-bold">Kalendář pronájmů</h1>
+
             <Card>
-                {sortedDates.length > 0 ? (
-                    <div className="space-y-6">
-                        {sortedDates.map(date => (
-                            <div key={date}>
-                                <h2 className="font-bold text-lg mb-2 border-b border-gray-700 pb-1">
-                                    {new Date(date).toLocaleDateString('cs-CZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                                </h2>
-                                <ul className="space-y-2">
-                                    {eventsByDate[date].map(event => (
-                                        <li key={`${event.id}-${event.type}`} className={`p-3 rounded-lg flex items-center ${
-                                            event.type === 'start' ? 'bg-blue-500/20' : 'bg-red-500/20'
-                                        }`}>
-                                            <span className={`w-3 h-3 rounded-full mr-3 ${event.type === 'start' ? 'bg-blue-400' : 'bg-red-400'}`}></span>
-                                            <div>
-                                                <span className="font-semibold">{getVehicleBrand(event.vehicleId)}</span> - {getCustomerName(event.customerId)}
-                                                <span className="text-sm text-text-secondary ml-2">
-                                                    ({event.type === 'start' ? 'Začátek' : 'Konec'} v {new Date(event.type === 'start' ? event.startDate : event.endDate).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })})
-                                                </span>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
+                <div className="space-y-4">
+                    {sortedRentals.length > 0 ? sortedRentals.map(rental => {
+                        const vehicle = vehicles.find(v => v.id === rental.vehicleId);
+                        const customer = customers.find(c => c.id === rental.customerId);
+                        const isPast = new Date(rental.endDate) < new Date();
+                        const isActive = new Date(rental.startDate) <= new Date() && new Date(rental.endDate) >= new Date();
+
+                        return (
+                            <div key={rental.id} className={`flex items-start p-4 rounded-lg border-l-4 ${
+                                isActive ? 'border-green-500 bg-green-500/10' :
+                                isPast ? 'border-gray-600 bg-gray-800/50' :
+                                'border-blue-500 bg-blue-500/10'
+                            }`}>
+                                <div className="flex-1">
+                                    <p className="font-bold text-lg">{vehicle?.brand}</p>
+                                    <p className="text-sm text-text-secondary">Zákazník: {customer?.first_name} {customer?.last_name}</p>
+                                </div>
+                                <div className="text-right">
+                                     <p className="font-semibold">{new Date(rental.startDate).toLocaleString('cs-CZ')}</p>
+                                     <p className="text-sm text-text-secondary">až</p>
+                                     <p className="font-semibold">{new Date(rental.endDate).toLocaleString('cs-CZ')}</p>
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-text-secondary">V kalendáři nejsou žádné události.</p>
-                )}
+                        );
+                    }) : (
+                        <p className="text-text-secondary p-4">Žádné pronájmy k zobrazení.</p>
+                    )}
+                </div>
             </Card>
         </div>
     );

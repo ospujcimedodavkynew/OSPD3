@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { Modal, Button, Input, Select, Card } from './ui';
 import type { RentalRequest } from '../types';
+import { Modal, Button, Select, Input } from './ui';
 
 interface RequestApprovalModalProps {
     request: RentalRequest;
@@ -10,100 +10,96 @@ interface RequestApprovalModalProps {
 
 const RequestApprovalModal: React.FC<RequestApprovalModalProps> = ({ request, onClose }) => {
     const { vehicles, approveRentalRequest, getLicenseImageUrl, addToast } = useData();
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
-    const [startDate, setStartDate] = useState<string>('');
-    const [endDate, setEndDate] = useState<string>('');
-    const [totalPrice, setTotalPrice] = useState<number>(0);
-    const [licenseImageUrl, setLicenseImageUrl] = useState<string | null>(null);
-
-    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    const [selectedVehicleId, setSelectedVehicleId] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [totalPrice, setTotalPrice] = useState(0);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
-        if (selectedVehicle && startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            if (start < end) {
-                const diffTime = Math.abs(end.getTime() - start.getTime());
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                setTotalPrice(diffDays * selectedVehicle.pricing.perDay);
+        const fetchImage = async () => {
+            if (request.drivers_license_image_base64) {
+                 // The base64 string is directly in the request object for new pending requests.
+                 setImageUrl(request.drivers_license_image_base64);
+            }
+        };
+        fetchImage();
+    }, [request]);
+
+    // Simple pricing logic for approval
+    useEffect(() => {
+        const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+        if (vehicle && startDate && endDate) {
+            const start = new Date(startDate).getTime();
+            const end = new Date(endDate).getTime();
+            if (end > start) {
+                const durationHours = (end - start) / (1000 * 60 * 60);
+                const durationDays = Math.ceil(durationHours / 24);
+                setTotalPrice(durationDays * (vehicle.pricing.perDay || 0));
             } else {
                 setTotalPrice(0);
             }
         }
-    }, [selectedVehicle, startDate, endDate]);
-    
-    useEffect(() => {
-        const fetchImageUrl = async () => {
-            if (request.customer_details.drivers_license_image_path) {
-                const url = await getLicenseImageUrl(request.customer_details.drivers_license_image_path);
-                setLicenseImageUrl(url);
-            }
-        };
-        // For local mock, we can display the base64 if it exists.
-        if (request.drivers_license_image_base64) {
-             setLicenseImageUrl(request.drivers_license_image_base64);
-        } else {
-            fetchImageUrl();
-        }
-    }, [request, getLicenseImageUrl]);
+    }, [selectedVehicleId, startDate, endDate, vehicles]);
 
     const handleApprove = async () => {
         if (!selectedVehicleId || !startDate || !endDate || totalPrice <= 0) {
-            addToast('Vyplňte prosím všechny detaily pronájmu.', 'error');
+            addToast("Vyplňte prosím všechny údaje pro schválení.", 'error');
             return;
         }
         await approveRentalRequest(request.id, selectedVehicleId, startDate, endDate, totalPrice);
         onClose();
     };
 
+    const handleReject = () => {
+        // In a real app, you would update the status to 'rejected'
+        console.log("Request rejected:", request.id);
+        addToast("Žádost byla zamítnuta.", "info");
+        onClose();
+    };
+    
+    const { customer_details } = request;
+
     return (
         <Modal isOpen={true} onClose={onClose} title="Schválení žádosti o pronájem">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Customer Details */}
-                <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Údaje o zákazníkovi</h3>
-                    <Card className="bg-gray-900/50">
-                        <p><strong>Jméno:</strong> {request.customer_details.first_name} {request.customer_details.last_name}</p>
-                        <p><strong>Email:</strong> {request.customer_details.email}</p>
-                        <p><strong>Telefon:</strong> {request.customer_details.phone}</p>
-                        <p><strong>Číslo OP:</strong> {request.customer_details.id_card_number}</p>
-                        <p><strong>Číslo ŘP:</strong> {request.customer_details.drivers_license_number}</p>
-                        <p className="text-xs text-green-400 mt-2">Digitální souhlas udělen: {new Date(request.digital_consent_at).toLocaleString('cs-CZ')}</p>
-                    </Card>
-                    <h3 className="text-lg font-semibold mt-4">Doklad</h3>
-                     {licenseImageUrl ? (
-                        <a href={licenseImageUrl} target="_blank" rel="noopener noreferrer">
-                            <img src={licenseImageUrl} alt="Řidičský průkaz" className="rounded-lg max-h-60 w-auto" />
-                        </a>
-                    ) : (
-                        <p className="text-text-secondary">Zákazník nenahrál obrázek dokladu.</p>
-                    )}
+            <div className="space-y-6">
+                <div>
+                    <h3 className="font-bold text-lg mb-2">Detaily zákazníka</h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm bg-gray-800 p-4 rounded-lg">
+                        <p><strong>Jméno:</strong> {customer_details.first_name} {customer_details.last_name}</p>
+                        <p><strong>Email:</strong> {customer_details.email}</p>
+                        <p><strong>Telefon:</strong> {customer_details.phone}</p>
+                        <p><strong>Číslo OP:</strong> {customer_details.id_card_number}</p>
+                        <p><strong>Číslo ŘP:</strong> {customer_details.drivers_license_number}</p>
+                    </div>
                 </div>
 
-                {/* Rental Details */}
-                <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Detaily pronájmu</h3>
-                    <Select label="Vozidlo" value={selectedVehicleId} onChange={e => setSelectedVehicleId(e.target.value)} required>
-                        <option value="">-- Vyberte vozidlo --</option>
-                        {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} - {v.license_plate}</option>)}
-                    </Select>
-                    <Input label="Začátek pronájmu" type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required />
-                    <Input label="Konec pronájmu" type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required />
-                    
-                    {totalPrice > 0 && (
-                        <Card className="bg-gray-900/50">
-                            <h4 className="font-semibold">Cena</h4>
-                            <p className="text-2xl font-bold">{totalPrice.toLocaleString('cs-CZ')} Kč</p>
-                        </Card>
-                    )}
+                {imageUrl && (
+                     <div>
+                        <h3 className="font-bold text-lg mb-2">Snímek řidičského průkazu</h3>
+                        <img src={imageUrl} alt="Řidičský průkaz" className="max-w-sm rounded-lg border border-gray-600" />
+                    </div>
+                )}
+                
+                <div>
+                    <h3 className="font-bold text-lg mb-2">Detaily pronájmu</h3>
+                    <div className="space-y-4 bg-gray-800 p-4 rounded-lg">
+                        <Select label="Přiřadit vozidlo" value={selectedVehicleId} onChange={e => setSelectedVehicleId(e.target.value)} required>
+                            <option value="">-- Vyberte vozidlo --</option>
+                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.brand} - {v.license_plate}</option>)}
+                        </Select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input label="Začátek pronájmu" type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+                            <Input label="Konec pronájmu" type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required />
+                        </div>
+                         <p className="font-bold text-lg text-right">Cena: {totalPrice.toLocaleString('cs-CZ')} Kč</p>
+                    </div>
                 </div>
-            </div>
 
-            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
-                <Button variant="secondary" onClick={onClose}>Zavřít</Button>
-                <Button onClick={handleApprove} disabled={!selectedVehicleId || !startDate || !endDate}>
-                    Schválit a vytvořit smlouvu
-                </Button>
+                <div className="flex justify-end gap-4 pt-6 border-t border-gray-700">
+                    <Button variant="danger" onClick={handleReject}>Zamítnout</Button>
+                    <Button onClick={handleApprove}>Schválit a vytvořit smlouvu</Button>
+                </div>
             </div>
         </Modal>
     );

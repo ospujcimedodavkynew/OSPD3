@@ -1,35 +1,34 @@
 import React from 'react';
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useData } from './context/DataContext';
-import { Car, FileText, LayoutDashboard, Calendar, Settings, LogOutIcon } from './components/Icons';
-
 import Dashboard from './components/Dashboard';
 import Fleet from './components/Fleet';
 import Rentals from './components/Rentals';
 import CalendarView from './components/CalendarView';
-import SettingsComponent from './components/Settings';
+import Settings from './components/Settings';
 import Login from './components/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import CustomerFormPublic from './components/CustomerFormPublic';
+import { Car, FileText, LayoutDashboard, Calendar, Settings as SettingsIcon, LogOutIcon, LinkIcon } from './components/Icons';
 
-const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.ReactNode }> = ({ to, children, icon }) => {
+const NavItem: React.FC<{ to: string; icon: React.ReactNode; children: React.ReactNode }> = ({ to, icon, children }) => {
     const location = useLocation();
     const isActive = location.pathname === to;
     return (
-        <Link
+        <NavLink
             to={to}
-            className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+            className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${
                 isActive ? 'bg-primary text-white' : 'text-text-secondary hover:bg-surface hover:text-text-primary'
             }`}
         >
             <span className="mr-3">{icon}</span>
             {children}
-        </Link>
+        </NavLink>
     );
 };
 
-const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { logout } = useData();
+const Sidebar: React.FC = () => {
+    const { logout, addToast } = useData();
     const navigate = useNavigate();
 
     const handleLogout = () => {
@@ -37,55 +36,60 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         navigate('/login');
     };
     
+    const copyPublicFormLink = () => {
+        const url = `${window.location.origin}${window.location.pathname}#/public-form`;
+        navigator.clipboard.writeText(url);
+        addToast("Odkaz na veřejný formulář byl zkopírován.", "info");
+    };
+
     return (
-        <div className="flex h-screen bg-background text-text-primary">
-            <aside className="w-64 bg-surface p-4 flex flex-col justify-between border-r border-gray-700">
-                <div>
-                    <div className="px-4 mb-8">
-                         <h1 className="text-2xl font-bold">Rental<span className="text-accent">Manager</span></h1>
-                    </div>
-                    <nav className="space-y-2">
-                        <NavLink to="/" icon={<LayoutDashboard className="w-5 h-5" />}>Přehled</NavLink>
-                        <NavLink to="/fleet" icon={<Car className="w-5 h-5" />}>Vozový park</NavLink>
-                        <NavLink to="/rentals" icon={<FileText className="w-5 h-5" />}>Půjčovné</NavLink>
-                        <NavLink to="/calendar" icon={<Calendar className="w-5 h-5" />}>Kalendář</NavLink>
-                        <NavLink to="/settings" icon={<Settings className="w-5 h-5" />}>Nastavení</NavLink>
-                    </nav>
-                </div>
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center w-full px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-surface hover:text-text-primary rounded-lg transition-colors"
-                >
+        <aside className="w-64 bg-surface flex flex-col p-4 border-r border-gray-700">
+            <div className="flex items-center mb-8">
+                <h1 className="text-2xl font-bold text-text-primary">Rental<span className="text-accent">Manager</span></h1>
+            </div>
+            <nav className="flex-1 space-y-2">
+                <NavItem to="/" icon={<LayoutDashboard className="w-5 h-5" />}>Přehled</NavItem>
+                <NavItem to="/fleet" icon={<Car className="w-5 h-5" />}>Vozový park</NavItem>
+                <NavItem to="/rentals" icon={<FileText className="w-5 h-5" />}>Pronájmy</NavItem>
+                <NavItem to="/calendar" icon={<Calendar className="w-5 h-5" />}>Kalendář</NavItem>
+                <NavItem to="/settings" icon={<SettingsIcon className="w-5 h-5" />}>Nastavení</NavItem>
+            </nav>
+            <div className="mt-auto space-y-2">
+                 <button onClick={copyPublicFormLink} className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg text-text-secondary hover:bg-surface hover:text-text-primary">
+                    <LinkIcon className="w-5 h-5 mr-3" />
+                    Veřejný formulář
+                </button>
+                <button onClick={handleLogout} className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg text-text-secondary hover:bg-surface hover:text-text-primary">
                     <LogOutIcon className="w-5 h-5 mr-3" />
                     Odhlásit se
                 </button>
-            </aside>
-            <main className="flex-1 overflow-y-auto p-8">
-                {children}
-            </main>
-        </div>
+            </div>
+        </aside>
     );
 };
 
 const App: React.FC = () => {
+    const { isAuthenticated } = useData();
+    const location = useLocation();
+
+    // Do not show sidebar on login or public form pages
+    const showSidebar = isAuthenticated && location.pathname !== '/login' && location.pathname !== '/public-form';
+    
     return (
-        <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/public-request" element={<CustomerFormPublic />} />
-            <Route path="/*" element={
-                <ProtectedRoute>
-                    <AppLayout>
-                        <Routes>
-                            <Route path="/" element={<Dashboard />} />
-                            <Route path="/fleet" element={<Fleet />} />
-                            <Route path="/rentals" element={<Rentals />} />
-                            <Route path="/calendar" element={<CalendarView />} />
-                            <Route path="/settings" element={<SettingsComponent />} />
-                        </Routes>
-                    </AppLayout>
-                </ProtectedRoute>
-            } />
-        </Routes>
+        <div className="flex h-screen bg-background text-text-primary">
+            {showSidebar && <Sidebar />}
+            <main className="flex-1 overflow-y-auto p-8">
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/public-form" element={<CustomerFormPublic />} />
+                    <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/fleet" element={<ProtectedRoute><Fleet /></ProtectedRoute>} />
+                    <Route path="/rentals" element={<ProtectedRoute><Rentals /></ProtectedRoute>} />
+                    <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
+                    <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                </Routes>
+            </main>
+        </div>
     );
 };
 
